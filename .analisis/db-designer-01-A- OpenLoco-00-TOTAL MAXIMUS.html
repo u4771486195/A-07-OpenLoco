@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OpenLoco Master Architecture</title>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #111827; color: #d1d5db; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .header { background-color: #1f2937; padding: 1rem 2rem; border-bottom: 1px solid #374151; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; }
+    h1 { color: white; margin: 0; }
+    .controls { display: flex; align-items: center; gap: 20px; }
+    .legend { display: flex; gap: 20px; font-size: 12px; align-items: center; }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .main-container { display: flex; flex-grow: 1; }
+    .panel { min-width: 150px; height: 100%; display: flex; flex-direction: column; position: relative; }
+    .panel:nth-child(1) { flex: 0 1 15%; }
+    .panel:nth-child(3) { flex: 1 1 70%; }
+    .panel:nth-child(5) { flex: 0 1 15%; }
+
+
+code
+Code
+download
+content_copy
+expand_less
+.splitter { width: 6px; background-color: #374151; cursor: col-resize; flex-shrink: 0; z-index: 100; }
+.splitter:hover { background-color: #4b5563; }
+.panel-header { padding: 1rem; text-align: center; border-bottom: 1px solid #374151; background-color: #1f2937; }
+.panel-header h2 { margin: 0; font-size: 1.5rem; }
+.header-r2 { color: #fca5a5; }
+.header-r3 { color: #86efac; }
+.header-r4 { color: #c4b5fd; }
+.canvas { position: relative; width: 100%; flex-grow: 1; overflow: hidden; cursor: grab; }
+.canvas:active { cursor: grabbing; }
+.connections { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.transform-container { position: absolute; top: 0; left: 0; transform-origin: 0 0; z-index: 2; }
+
+.node { position: absolute; border: 3px solid #4b5563; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); font-family: monospace; width: 280px; cursor: move; z-index: 10; user-select: none; padding-top: 30px; }
+.node h3 { padding: 8px 12px 8px 12px; margin: 0; border-bottom: 1px solid rgba(0,0,0,0.2); border-radius: 8px 8px 0 0; font-size: 14px; color: white; word-break: break-all; }
+.node h3 .path { font-size: 0.8em; color: #9ca3af; display: block; font-weight: normal; }
+.node ul { list-style: none; padding: 0; margin: 0; }
+.node li { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; position: relative; }
+.node li:last-child { border-bottom: none; }
+.node .col-name { font-weight: 500; }
+.node .col-type { margin-left: auto; color: #9ca3af; }
+
+.db-node { background-color: rgba(196, 181, 253, 0.15); border-color: #a78bfa; }
+.db-node h3 { background-color: #8b5cf6; }
+
+.ui-node { background-color: rgba(191, 219, 254, 0.15); border-color: #60a5fa; }
+.ui-node h3 { background-color: #3b82f6; }
+
+.code-node { background-color: rgba(134, 239, 172, 0.1); border-color: #4ade80; }
+.code-node h3 { background-color: #22c55e; }
+
+.service-node { background-color: rgba(252, 165, 165, 0.1); border-color: #f87171; }
+.service-node h3 { background-color: #ef4444; }
+
+.icon-display { position: absolute; top: -32px; left: 50%; transform: translateX(-50%); font-size: 64px; z-index: 12; pointer-events: none; opacity: 0.8; }
+</style>
+
+</head>
+<body>
+
+<div class="header">
+    <h1>Full Stack Designer - OpenLoco Master Architecture</h1>
+    <div class="controls">
+        <div class="legend">
+             <div class="legend-item"><svg width="10" height="10" style="background:#3b82f6; border-radius:3px;"></svg> UI</div>
+            <div class="legend-item"><svg width="10" height="10" style="background:#22c55e; border-radius:3px;"></svg> Code</div>
+            <div class="legend-item"><svg width="10" height="10" style="background:#8b5cf6; border-radius:3px;"></svg> Data/Schema</div>
+            <div class="legend-item"><svg width="10" height="10" style="background:#ef4444; border-radius:3px;"></svg> Service</div>
+        </div>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="panel">
+        <div class="panel-header"><h2 class="header-r2">Raptor 2: Legacy</h2></div>
+        <div id="canvas-r2" class="canvas"><svg id="connections-r2" class="connections"></svg><div class="transform-container"></div></div>
+    </div>
+    <div class="splitter"></div>
+    <div class="panel">
+        <div class="panel-header"><h2 class="header-r3">OpenLoco Engine</h2></div>
+        <div id="canvas-r3" class="canvas"><svg id="connections-r3" class="connections"></svg><div class="transform-container"></div></div>
+    </div>
+    <div class="splitter"></div>
+    <div class="panel">
+        <div class="panel-header"><h2 class="header-r4">Raptor 4: Future</h2></div>
+        <div id="canvas-r4" class="canvas"><svg id="connections-r4" class="connections"></svg><div class="transform-container"></div></div>
+    </div>
+</div>
+
+<script>
+// ===================================================================================
+//
+//  MASTER DATA SOURCES
+//
+// ===================================================================================
+/*
+    ARCHITECTURAL INSIGHTS FOR FUTURE AI ANALYSIS:
+    This file provides a detailed architectural view of the OpenLoco engine. OpenLoco is an open-source re-implementation of Chris Sawyer's Locomotion, aiming to rewrite the original x86 assembly codebase into modern C++. The analysis reveals a well-structured C++ application with a strong separation of concerns, data-driven design principles, and a clear distinction between the core game engine and external libraries.
+
+    **Overall Architectural Philosophy:**
+    The architecture is characterized by a set of high-level managers (e.g., `VehicleManager`, `StationManager`, `ObjectManager`) that oversee different domains of the game. Game state is modified through a robust `GameCommands` system, ensuring that all changes are centrally controlled and validated. The engine is highly data-driven, with game objects (vehicles, industries, etc.) defined as C++ structs that function as schemas, and user-facing text is loaded from external YAML files. Rendering is separated from game logic through a dedicated `Paint` system.
+
+    **Key Architectural Components:**
+    - **Application Core & Main Loop (`Main.cpp`, `OpenLoco.cpp`):** The entry point of the application, responsible for initializing all subsystems and running the main game loop, which processes updates, user input, and rendering ticks.
+    - **Managers (Code):**
+        - `EntityManager`: The central nervous system for all dynamic objects in the game world, including vehicles and particle effects. It manages their lifecycle and spatial indexing.
+        - `ObjectManager`: Loads and provides access to all game object definitions (e.g., `VehicleObject`, `IndustryObject`), which act as templates for creating game instances.
+        - `VehicleManager`, `StationManager`, `TownManager`, `IndustryManager`: High-level controllers that manage the logic and state for all vehicles, stations, towns, and industries in the game.
+        - `StringManager`: Manages all in-game text, loading strings from language files and handling dynamic formatting.
+    - **Game State & Data (`GameState.h`, `Objects/*.h`, `data/language/*.yml`):**
+        - `GameState.h`: A large struct that aggregates the entire state of the game, making it serializable.
+        - `Objects/*.h`: These headers define the structure and properties of all game entities. They are a form of data schema encoded in C++.
+        - `data/language/*.yml`: External YAML files containing all localizable strings, which are parsed by `LanguageFiles.cpp`.
+        - `S5/S5.cpp`: Implements the logic for saving and loading the game state to/from `.sv5` and `.sc5` files.
+    - **Game Logic Subsystems (Code):**
+        - `GameCommands`: A command pattern implementation where all state-modifying actions (e.g., building a track, creating a vehicle) are encapsulated as commands. This is crucial for networking and replay functionality.
+        - **Vehicle System** (`Vehicle.h`, `OrderManager.h`, `RoutingManager.h`): A complex subsystem that handles vehicle physics, order execution, and pathfinding through the game world's track and road networks.
+        - **Map System** (`TileManager.h`, `*Element.h`): Manages the grid-based game world. Each tile is composed of a linked list of elements (surface, track, building, etc.), defining both its logical and visual properties.
+    - **Rendering (`Paint/`):** The `Paint` system is responsible for rendering the game world. It iterates through visible tiles and their elements (`PaintTile.cpp`), creating a list of drawable items (`PaintStruct`) that are then sorted and drawn to the screen. It's a classic painter's algorithm approach.
+    - **External Services:**
+        - **`OpenAL`:** Used by the `Audio` subsystem for sound and music playback.
+        - **`yaml-cpp`:** Used by the `Localisation` system to parse language files.
+        - **`libpng`:** Used for loading PNG images, particularly for the map generator.
+        - **`SDL2`:** (Inferred) Provides the window, input, and graphics context for the application.
+
+    **Data Flow & Interaction:**
+    1.  **Initialization:** `Main.cpp` starts the game, which initializes all managers and loads object definitions via `ObjectManager`.
+    2.  **Game Loop:** The main loop calls update functions on the various managers (`VehicleManager::update()`, `TownManager::update()`, etc.).
+    3.  **User Input:** UI interactions generate `GameCommands`. For example, clicking the "build track" button will dispatch a `CreateTrack` command.
+    4.  **State Modification:** `GameCommands::doCommand` executes the command, which modifies the game state (e.g., creating new `TrackElement`s in the `TileManager`).
+    5.  **Rendering:** The `Paint` system reads the current state from `TileManager` and `EntityManager` and generates a series of draw calls for the graphics engine.
+    6.  **Serialization:** When saving, `S5.cpp` reads the entire `GameState` and all tile elements and writes them to a file using the Sawyer stream format.
+*/
+const schemaR2 = { tables: [], relationships: [] };
+const schemaR4 = { tables: [], relationships: [] };
+
+const schemaR3 = {
+    tables: [
+        { id: 1, name: "Application Entry", path: "src/OpenLoco/Main.cpp", nodeType: "code", pos: { x: 50, y: 150 }, icon: "🚀", columns: [ { name: "main()" }, { name: "OpenLoco::main()" } ] },
+        { id: 2, name: "UI & Window Manager", path: "src/OpenLoco/Ui/WindowManager.h", nodeType: "ui", pos: { x: 50, y: 450 }, icon: "🖼️", columns: [ { name: "update()" }, { name: "draw()" } ] },
+        { id: 3, name: "Paint System", path: "src/OpenLoco/Paint/Paint.cpp", nodeType: "ui", pos: { x: 50, y: 750 }, icon: "🎨", columns: [ { name: "generate()" }, { name: "drawStructs()" } ] },
+        { id: 4, name: "Main Game Loop", path: "src/OpenLoco/OpenLoco.cpp", nodeType: "code", pos: { x: 450, y: 150 }, icon: "🔄", columns: [ { name: "main()" }, { name: "run()" }, { name: "update()" } ] },
+        { id: 5, name: "Game Logic & Tick", path: "src/OpenLoco/Game.cpp", nodeType: "code", pos: { x: 450, y: 450 }, icon: "🎮", columns: [ { name: "loadGame()" }, { name: "quitGame()" }, { name: "tick()" } ] },
+        { id: 6, name: "Game Commands", path: "src/OpenLoco/GameCommands/", nodeType: "code", pos: { x: 450, y: 750 }, icon: "📦", columns: [ { name: "doCommand()" }, { name: "CreateTrack" }, { name: "CreateVehicle" } ] },
+        { id: 7, name: "Entity Manager", path: "src/OpenLoco/Entities/EntityManager.h", nodeType: "code", pos: { x: 450, y: 1050 }, icon: "🧠", columns: [ { name: "update()" }, { name: "get<T>()" }, { name: "resetSpatialIndex()" } ] },
+        { id: 8, name: "Vehicle Manager", path: "src/OpenLoco/Vehicles/VehicleManager.h", nodeType: "code", pos: { x: 450, y: 1350 }, icon: "🚚", columns: [ { name: "update()" }, { name: "VehicleList()" } ] },
+        { id: 9, name: "Vehicle Core", path: "src/OpenLoco/Vehicles/Vehicle.h", nodeType: "code", pos: { x: 450, y: 1650 }, icon: "⚙️", columns: [ { name: "updateComponent()" }, { name: "VehicleHead" }, { name: "VehicleBody" }, { name: "VehicleBogie" } ] },
+        { id: 10, name: "Routing & Pathfinding", path: "src/OpenLoco/Vehicles/Routing.cpp", nodeType: "code", pos: { x: 450, y: 1950 }, icon: "🗺️", columns: [ { name: "getSignalState()" }, { name: "findAllUsableTrackInNetwork()" } ] },
+        { id: 11, name: "Order Manager", path: "src/OpenLoco/Vehicles/OrderManager.h", nodeType: "code", pos: { x: 450, y: 2250 }, icon: "📋", columns: [ { name: "insertOrder()" }, { name: "deleteOrder()" } ] },
+        { id: 12, name: "Object Manager", path: "src/OpenLoco/Objects/ObjectManager.h", nodeType: "code", pos: { x: 450, y: 2550 }, icon: "📚", columns: [ { name: "loadAll()" }, { name: "get<T>()" } ] },
+        { id: 13, name: "Audio System", path: "src/OpenLoco/Audio/Audio.cpp", nodeType: "code", pos: { x: 450, y: 2850 }, icon: "🔊", columns: [ { name: "initialiseDSound()" }, { name: "playSound()" }, { name: "updateVehicleNoise()" } ] },
+        { id: 14, "name": "OpenAL Abstraction", "path": "src/OpenLoco/Audio/OpenAL.cpp", "nodeType": "code", "pos": { "x": 450, "y": 3150 }, "icon": "🎧", "columns": [ { "name": "Device::open()" }, { "name": "Source::play()" } ] },
+        { id: 15, "name": "Localization System", "path": "src/OpenLoco/Localisation/", "nodeType": "code", "pos": { "x": 450, "y": 3450 }, "icon": "🌐", "columns": [ { "name": "loadLanguageFile()" }, { "name": "formatString()" } ] },
+        { id: 16, "name": "Save/Load System (S5)", "path": "src/OpenLoco/S5/S5.cpp", "nodeType": "code", "pos": { "x": 450, "y": 3750 }, "icon": "💾", "columns": [ { "name": "exportGameStateToFile()" }, { "name": "importSaveToGameState()" } ] },
+        { id: 17, name: "Build System", path: "CMakeLists.txt", nodeType: "db", pos: { x: 850, y: 150 }, icon: "🛠️", columns: [ { name: "project(openloco)" }, { name: "Dependencies (SDL2, OpenAL...)" }, { name: "Source Files (*.cpp)" } ] },
+        { id: 18, name: "Object Definitions", path: "src/OpenLoco/Objects/*.h", nodeType: "db", pos: { x: 850, y: 450 }, icon: "📝", columns: [ { name: "VehicleObject" }, { name: "IndustryObject" }, { name: "TrackObject" } ] },
+        { id: 19, name: "Language Data Files", path: "data/language/*.yml", nodeType: "db", pos: { x: 850, y: 750 }, icon: "📄", columns: [ { name: "en-GB.yml" }, { name: "de-DE.yml" } ] },
+        { id: 20, name: "Game State", path: "src/OpenLoco/GameState.h", nodeType: "db", pos: { x: 850, y: 1050 }, icon: "🧠", columns: [ { name: "companies[]" }, { name: "stations[]" }, { name: "entities[]" } ] },
+        { id: 21, name: "Tile Manager", path: "src/OpenLoco/Map/TileManager.h", nodeType: "db", pos: { x: 850, y: 1350 }, icon: "▦", columns: [ { name: "get(pos)" }, { name: "insertElement()" }, { name: "removeElement()" } ] },
+        { id: 22, name: "Map Elements", path: "src/OpenLoco/Map/*Element.h", nodeType: "db", pos: { x: 850, y: 1650 }, icon: "🧱", columns: [ { name: "SurfaceElement" }, { name: "TrackElement" }, { name: "BuildingElement" } ] },
+        { id: 23, name: "External Libraries", path: "(vcpkg, system)", nodeType: "service", pos: { x: 1250, y: 150 }, icon: "📦", columns: [ { name: "SDL2 (Windowing)" }, { name: "OpenAL (Audio)" }, { name: "yaml-cpp (Data)" }, { name: "libpng (Images)" } ] },
+        { id: 24, name: "Object Manager", path: "src/OpenLoco/Objects/ObjectManager.cpp", nodeType: "code", pos: { x: 450, y: 4050 }, icon: "🗂️", columns: [ { name: "loadIndex()" }, { name: "get<T>()" }, { name: "load(ObjectHeader)" } ] }
+    ],
+    relationships: [
+        { from: { table: "Application Entry", column: "OpenLoco::main()" }, to: { table: "Main Game Loop", column: "main()" } },
+        { from: { table: "Build System", column: "Dependencies (SDL2, OpenAL...)" }, to: { table: "External Libraries", column: "SDL2 (Windowing)" } },
+        { from: { table: "Build System", column: "Source Files (*.cpp)" }, to: { table: "Game Logic & Tick", column: "loadGame()" } },
+        { from: { table: "Main Game Loop", column: "update()" }, to: { table: "Game Logic & Tick", column: "tick()" } },
+        { from: { table: "Object Manager", column: "load(ObjectHeader)" }, to: { table: "Object Definitions", column: "VehicleObject" } },
+        { from: { table: "Game Logic & Tick", column: "tick()" }, to: { table: "Language Data Files", column: "en-GB.yml" } },
+        { from: { table: "Main Game Loop", column: "update()" }, to: { table: "UI & Window Manager", column: "update()" } },
+        { from: { table: "UI & Window Manager", column: "update()" }, to: { table: "Game Commands", column: "doCommand()" } },
+        { from: { table: "Game Commands", column: "doCommand()" }, to: { table: "Tile Manager", column: "insertElement()" } },
+        { from: { table: "Game Commands", column: "doCommand()" }, to: { table: "Vehicle Manager", column: "update()" } },
+        { from: { table: "Game Logic & Tick", column: "tick()" }, to: { table: "Entity Manager", column: "update()" } },
+        { from: { table: "Game Logic & Tick", column: "tick()" }, to: { table: "Vehicle Manager", column: "update()" } },
+        { from: { table: "Entity Manager", column: "get<T>()" }, to: { table: "Vehicle Core", column: "VehicleHead" } },
+        { from: { table: "Vehicle Manager", column: "update()" }, to: { table: "Vehicle Core", column: "updateComponent()" } },
+        { from: { table: "Vehicle Core", column: "updateComponent()" }, to: { table: "Routing & Pathfinding", column: "findAllUsableTrackInNetwork()" } },
+        { from: { table: "Vehicle Core", column: "updateComponent()" }, to: { table: "Order Manager", column: "insertOrder()" } },
+        { from: { table: "Routing & Pathfinding", column: "findAllUsableTrackInNetwork()" }, to: { table: "Map Elements", column: "TrackElement" } },
+        { from: { table: "Tile Manager", column: "get(pos)" }, to: { table: "Map Elements", column: "SurfaceElement" } },
+        { from: { table: "Game Logic & Tick", column: "loadGame()" }, to: { table: "Object Manager", column: "loadAll()" } },
+        { from: { table: "Object Manager", column: "get<T>()" }, to: { table: "Object Definitions", column: "VehicleObject" } },
+        { from: { table: "Paint System", column: "generate()" }, to: { table: "Tile Manager", column: "get(pos)" } },
+        { from: { table: "Paint System", column: "drawStructs()" }, to: { table: "UI & Window Manager", column: "draw()" } },
+        { from: { table: "Audio Engine", column: "initialiseDSound()" }, to: { table: "OpenAL Abstraction", column: "Device::open()" } },
+        { from: { table: "OpenAL Abstraction", column: "Device::open()" }, to: { table: "External Libraries", column: "OpenAL (Audio)" } },
+        { from: { table: "Audio Engine", column: "updateVehicleNoise()" }, to: { table: "Vehicle Core", column: "VehicleBogie" } },
+        { from: { table: "Localization System", column: "loadLanguageFile()" }, to: { table: "Language Data Files", column: "en-GB.yml" } },
+        { from: { table: "Localization System", column: "loadLanguageFile()" }, to: { table: "External Libraries", column: "yaml-cpp (Data)" } },
+        { from: { table: "Main Game Loop", column: "update()" }, to: { table: "Audio Engine", column: "updateVehicleNoise()" } },
+        { from: { table: "Save/Load System (S5)", column: "exportGameStateToFile()" }, to: { table: "Game State", column: "entities[]" } },
+        { from: { table: "Game State", column: "stations[]" }, to: { table: "Save/Load System (S5)", column: "importSaveToGameState()" } },
+        { from: { table: "Game State", column: "companies[]" }, to: { table: "Vehicle Manager", column: "update()" } }
+    ]
+};
+
+
+
+// ===================================================================================
+//  RENDERING LOGIC
+// ===================================================================================
+function initializeCanvas(canvasId, schema) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const transformContainer = canvas.querySelector('.transform-container');
+    const svg = canvas.querySelector('.connections');
+    let state = { scale: 0.7, panX: 50, panY: 50, isPanning: false, lastMouse: { x: 0, y: 0 } };
+
+    function render() {
+        if (!transformContainer || !svg) return;
+        transformContainer.innerHTML = '';
+        transformContainer.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+        
+        schema.tables.forEach(table => {
+            const node = document.createElement('div');
+            node.id = `${canvasId}-${table.id}`;
+            node.classList.add('node', `${table.nodeType}-node`);
+            node.style.left = `${table.pos.x}px`;
+            node.style.top = `${table.pos.y}px`;
+
+            const header = document.createElement('h3');
+            const pathSpan = table.path ? `<span class="path">${table.path}</span>` : '';
+            header.innerHTML = `${pathSpan}${table.name}`;
+
+            const list = document.createElement('ul');
+            list.innerHTML = table.columns.map(col => {
+                const colName = typeof col === 'string' ? col : col.name;
+                const colType = typeof col === 'string' ? '' : col.type;
+                const colId = colName.replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+                return `<li id="${canvasId}-${table.id}-${colId}"><span class="col-name">${colName}</span>${colType ? `<span class="col-type">${colType}</span>` : ''}</li>`;
+            }).join('');
+            
+            if (table.icon) {
+                const iconDisplay = document.createElement('div');
+                iconDisplay.className = 'icon-display';
+                iconDisplay.textContent = table.icon;
+                node.appendChild(iconDisplay);
+            }
+
+            node.appendChild(header);
+            node.appendChild(list);
+            transformContainer.appendChild(node);
+        });
+        updateConnections();
+    }
+    
+    function getElementPortPosition(elId) {
+        const el = document.getElementById(elId);
+        if (!el) return null;
+        const parentNode = el.closest('.node');
+        if (!parentNode) return null;
+        const isNodeConnection = el.classList.contains('node');
+        
+        const parentRect = parentNode.getBoundingClientRect();
+        const elRect = isNodeConnection ? parentRect : el.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        const y = isNodeConnection ? (parentRect.top - canvasRect.top + parentRect.height / 2) : (elRect.top - canvasRect.top + elRect.height / 2);
+        const leftX = (parentRect.left - canvasRect.left);
+        const rightX = (parentRect.right - canvasRect.left);
+
+        return { left: {x: leftX, y: y}, right: {x: rightX, y: y} };
+    }
+
+    function updateConnections() {
+        if (!svg) return;
+        svg.innerHTML = `<defs>
+            <marker id="arrowhead-read-${canvasId}" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#6b7283" /></marker>
+            <marker id="arrowhead-write-${canvasId}" markerWidth="12" markerHeight="9" refX="10" refY="4.5" orient="auto"><polygon points="0 0, 12 4.5, 0 9" fill="#86efac" /></marker>
+            <marker id="arrowhead-flow-${canvasId}" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#9ca3af" /></marker>
+        </defs>`;
+        
+        const idMap = new Map(schema.tables.map(t => [t.name, t.id]));
+
+        schema.relationships.forEach(rel => {
+            const fromId = idMap.get(rel.from.table);
+            const toId = idMap.get(rel.to.table);
+            if(!fromId || !toId) return;
+
+            let fromColName = typeof rel.from.column === 'string' ? rel.from.column : rel.from.column.name;
+            let toColName = typeof rel.to.column === 'string' ? rel.to.column : rel.to.column.name;
+            
+            let fromElId = `${canvasId}-${fromId}-${fromColName.replace(/\s+/g, '-').replace(/[^\w-]/g, '')}`;
+            if (!document.getElementById(fromElId)) fromElId = `${canvasId}-${fromId}`;
+
+            let toElId = `${canvasId}-${toId}-${toColName.replace(/\s+/g, '-').replace(/[^\w-]/g, '')}`;
+            if (!document.getElementById(toElId)) toElId = `${canvasId}-${toId}`;
+            
+            const fromPorts = getElementPortPosition(fromElId);
+            const toPorts = getElementPortPosition(toElId);
+            if (!fromPorts || !toPorts) return;
+
+            const fromPos = toPorts.right.x < fromPorts.left.x ? fromPorts.left : fromPorts.right;
+            const toPos = toPorts.right.x < fromPorts.left.x ? toPorts.right : toPorts.left;
+            
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', fromPos.x); line.setAttribute('y1', fromPos.y);
+            line.setAttribute('x2', toPos.x); line.setAttribute('y2', toPos.y);
+
+            if (rel.type === 'write') {
+                line.setAttribute('stroke', '#86efac'); line.setAttribute('stroke-width', 4); line.setAttribute('marker-end', `url(#arrowhead-write-${canvasId})`);
+            } else if (rel.type === 'flow') {
+                line.setAttribute('stroke', '#9ca3af'); line.setAttribute('stroke-width', 2); line.setAttribute('stroke-dasharray', `6,6`); line.setAttribute('marker-end', `url(#arrowhead-flow-${canvasId})`);
+            } else {
+                line.setAttribute('stroke', '#6b7283'); line.setAttribute('stroke-width', 2); line.setAttribute('marker-end', `url(#arrowhead-read-${canvasId})`);
+            }
+            svg.appendChild(line);
+        });
+    }
+
+    let activeNode = null, offset = { x: 0, y: 0 };
+    canvas.addEventListener('mousedown', (e) => {
+        const targetNode = e.target.closest('.node');
+        if (targetNode) {
+            activeNode = targetNode;
+            const tableData = schema.tables.find(t => `${canvasId}-${t.id}` === activeNode.id);
+            if (!tableData) return;
+            const mouseX = (e.clientX - canvas.getBoundingClientRect().left - state.panX) / state.scale;
+            const mouseY = (e.clientY - canvas.getBoundingClientRect().top - state.panY) / state.scale;
+            offset.x = mouseX - tableData.pos.x;
+            offset.y = mouseY - tableData.pos.y;
+            activeNode.style.zIndex = 11;
+        } else {
+            state.isPanning = true;
+            state.lastMouse.x = e.clientX;
+            state.lastMouse.y = e.clientY;
+        }
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (activeNode) {
+            e.preventDefault();
+            const mouseX = (e.clientX - canvas.getBoundingClientRect().left - state.panX) / state.scale;
+            const mouseY = (e.clientY - canvas.getBoundingClientRect().top - state.panY) / state.scale;
+            const tableData = schema.tables.find(t => `${canvasId}-${t.id}` === activeNode.id);
+            if (tableData) {
+                tableData.pos.x = mouseX - offset.x;
+                tableData.pos.y = mouseY - offset.y;
+                activeNode.style.left = `${tableData.pos.x}px`;
+                activeNode.style.top = `${tableData.pos.y}px`;
+                updateConnections();
+            }
+        } else if (state.isPanning) {
+            e.preventDefault();
+            const dx = e.clientX - state.lastMouse.x;
+            const dy = e.clientY - state.lastMouse.y;
+            state.panX += dx;
+            state.panY += dy;
+            transformContainer.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+            updateConnections();
+            state.lastMouse.x = e.clientX;
+            state.lastMouse.y = e.clientY;
+        }
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (activeNode) { activeNode.style.zIndex = 10; activeNode = null; }
+        state.isPanning = false;
+    });
+    
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const oldScale = state.scale;
+        const zoomFactor = 1.1;
+        state.scale *= e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
+        state.scale = Math.max(0.1, Math.min(state.scale, 2.5));
+        state.panX = mouseX - (mouseX - state.panX) * (state.scale / oldScale);
+        state.panY = mouseY - (mouseY - state.panY) * (state.scale / oldScale);
+        render();
+    });
+
+    render();
+    return { render, updateConnections };
+}
+
+const canvases = [
+    initializeCanvas('canvas-r2', schemaR2),
+    initializeCanvas('canvas-r3', schemaR3),
+    initializeCanvas('canvas-r4', schemaR4)
+];
+
+document.querySelectorAll('.splitter').forEach(splitter => {
+    splitter.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const prevPanel = splitter.previousElementSibling;
+        const startX = e.clientX;
+        const initialPrevWidth = prevPanel.getBoundingClientRect().width;
+        
+        const onMouseMove = (moveEvent) => {
+            let newPrevWidth = initialPrevWidth + (moveEvent.clientX - startX);
+            const MIN_WIDTH = 150;
+            if (newPrevWidth < MIN_WIDTH) newPrevWidth = MIN_WIDTH;
+            prevPanel.style.flex = `0 0 ${newPrevWidth}px`;
+            canvases.forEach(c => c && c.render());
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+});
+
+window.addEventListener('resize', () => {
+    canvases.forEach(c => c && c.render());
+});
+</script>
+
+</body>
+</html>
